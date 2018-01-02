@@ -1,0 +1,44 @@
+language: php
+
+# because we need to install mysql 5.7 first
+sudo: required
+dist: trusty
+os: linux
+
+matrix:
+    include:
+        - php: 7.1
+        - php: 7.2
+
+    fast_finish: true
+
+cache:
+    directories:
+        - $HOME/.composer/cache/files
+
+services:
+  - mysql
+
+env:
+  global:
+    - MYSQL_NAME=united_core_test
+    - MYSQL_USER=root
+
+before_install:
+  - composer self-update
+  - mysql -e 'CREATE DATABASE united_core_test;'
+
+install:
+  - composer install
+
+before_script:
+  - bash .travis.install-mysql-5.7.sh
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
+
+script:
+  - phpunit --coverage-clover clover.xml
+
+after_success:
+  - ./cc-test-reporter after-build -t clover --exit-code $TRAVIS_TEST_RESULT

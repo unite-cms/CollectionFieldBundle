@@ -1,0 +1,27 @@
+{
+    "name": "united-cms/collection-field-bundle",
+    "type": "symfony-bundle",
+    "description": "Provides a repeatable collection field type for united CMS",
+    "require": {
+        "united-cms/core-bundle": "dev-master"
+    },
+    "autoload": {
+        "psr-4": { "UnitedCMS\\CollectionFieldBundle\\": "" },
+        "exclude-from-classmap": [
+            "/Tests/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": { "Tests\\app\\": "Tests/app/" }
+    },
+    "authors": [
+        {
+            "name": "Franz Wilding",
+            "email": "franz@unite.co.at"
+        },
+        {
+            "name": "Stefan Kamsker",
+            "email": "stefan@unite.co.at"
+        }
+    ]
+}
