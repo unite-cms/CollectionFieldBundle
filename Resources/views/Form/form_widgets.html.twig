@@ -9,4 +9,6 @@
     {%- set attr = attr|merge({'init-rows': initRows|json_encode }) -%}
 
     <{{ tag }} {{ block('widget_attributes') }}></{{ tag }}>
+    <link type="text/css" rel="stylesheet" href="{{ asset('main.css', 'UnitedCMSCollectionFieldBundle') }}">
+    <script type="text/javascript" src="{{ asset('main.js', 'UnitedCMSCollectionFieldBundle') }}"></script>
 {%- endblock united_cms_collection_widget -%}

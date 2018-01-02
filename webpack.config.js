@@ -6,9 +6,12 @@ Encore
     .setOutputPath('./Resources/public')
 
     // the public path used by the web server to access the previous directory
-    .setPublicPath('/')
+    .setPublicPath('/bundles/unitedcmscollectionfield')
 
-    .addEntry('UnitedCMSCollectionFieldBundle', './Resources/webpack/main.js')
+    // Used as a prefix to the *keys* in manifest.json
+    .setManifestKeyPrefix('')
+
+    .addEntry('main', './Resources/webpack/main.js')
 
     // allow sass/scss files to be processed
     .enableSassLoader(function(sassConfigOptions){
