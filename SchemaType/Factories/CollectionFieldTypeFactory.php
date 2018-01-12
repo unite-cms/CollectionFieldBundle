@@ -28,11 +28,12 @@ class CollectionFieldTypeFactory
      * Creates a new collectionField schema type.
      *
      * @param SchemaTypeManager $schemaTypeManager
+     * @param int $nestingLevel
      * @param FieldableField $field
      * @param Collection $collection
      * @return ObjectType
      */
-    public function createCollectionFieldType(SchemaTypeManager $schemaTypeManager, FieldableField $field, Collection $collection)
+    public function createCollectionFieldType(SchemaTypeManager $schemaTypeManager, int $nestingLevel, FieldableField $field, Collection $collection)
     {
         $schemaTypeName = ucfirst($field->getEntity()->getIdentifier()) . ucfirst($field->getIdentifier()) . 'CollectionField';
         $schemaTypeRowName = $schemaTypeName . 'Row';
@@ -58,7 +59,7 @@ class CollectionFieldTypeFactory
                     $fields[$field->getIdentifier()] = $field;
                     $fieldTypes[$field->getIdentifier()] = $this->fieldTypeManager->getFieldType($field->getType());
                     $fieldTypes[$field->getIdentifier()]->setEntityField($field);
-                    $fieldsSchemaTypes[$field->getIdentifier()] = $fieldTypes[$field->getIdentifier()]->getGraphQLType($schemaTypeManager);
+                    $fieldsSchemaTypes[$field->getIdentifier()] = $fieldTypes[$field->getIdentifier()]->getGraphQLType($schemaTypeManager, $nestingLevel + 1);
                     $fieldTypes[$field->getIdentifier()]->unsetEntityField();
                 }
 

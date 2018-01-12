@@ -77,10 +77,11 @@ class CollectionFieldType extends FieldType
         ]);
     }
 
-    function getGraphQLType(SchemaTypeManager $schemaTypeManager)
+    function getGraphQLType(SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
     {
         return $this->collectionFieldTypeFactory->createCollectionFieldType(
             $schemaTypeManager,
+            $nestingLevel,
             $this->field,
             $this->createCollectionModel($this->field->getSettings(), $this->getIdentifierPath($this->field))
         );
