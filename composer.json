@@ -3,7 +3,7 @@
     "type": "symfony-bundle",
     "description": "Provides a repeatable collection field type for united CMS",
     "require": {
-        "united-cms/core-bundle": "dev-master"
+        "united-cms/core-bundle": "0@dev"
     },
     "autoload": {
         "psr-4": { "UnitedCMS\\CollectionFieldBundle\\": "" },

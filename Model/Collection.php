@@ -28,10 +28,7 @@ class Collection implements Fieldable
     {
         $this->fields = new ArrayCollection();
         $this->setIdentifier($identifier);
-
-        foreach($fields as $field) {
-            $this->addField(new CollectionField($field));
-        }
+        $this->setFields($fields);
     }
 
     /**
@@ -49,7 +46,13 @@ class Collection implements Fieldable
      */
     public function setFields($fields)
     {
-        $this->fields = $fields;
+        foreach($fields as $field) {
+          if($field instanceof  CollectionField) {
+            $this->addField($field);
+          } elseif(is_array($field)) {
+            $this->addField(new CollectionField($field));
+          }
+        }
 
         return $this;
     }
