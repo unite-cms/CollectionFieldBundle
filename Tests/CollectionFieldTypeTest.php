@@ -4,6 +4,7 @@ namespace UnitedCMS\CollectionFieldBundle\Tests;
 
 use GraphQL\Type\Definition\ObjectType;
 use UnitedCMS\CoreBundle\Entity\Content;
+use UnitedCMS\CoreBundle\Entity\ContentType;
 use UnitedCMS\CoreBundle\Field\FieldableFieldSettings;
 use UnitedCMS\CoreBundle\Form\FieldableFormType;
 use UnitedCMS\CoreBundle\Tests\Field\FieldTypeTestCase;
@@ -251,7 +252,89 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
       $this->assertEquals('validation.additional_data', $violations[2]->getMessage());
     }
 
-    //public function testFormBuilding() {
-      // TODO
-    //}
+    public function testFormBuilding() {
+
+      $field = $this->createContentTypeField('collection');
+      $field->setSettings(new FieldableFieldSettings([
+        'min_rows' => 1,
+        'max_rows' => 4,
+        'fields' => [
+          [
+            'title' => 'Sub Field 1',
+            'identifier' => 'f1',
+            'type' => 'text',
+          ],
+          [
+            'title' => 'Nested Field 1',
+            'identifier' => 'n1',
+            'type' => 'collection',
+            'settings' => [
+              'fields' => [
+                [
+                  'title' => 'Nested Field 2',
+                  'identifier' => 'n2',
+                  'type' => 'collection',
+                  'settings' => [
+                    'fields' => [
+                      [
+                        'title' => 'Sub Field 2',
+                        'identifier' => 'f2',
+                        'type' => 'text',
+                      ],
+                    ]
+                  ],
+                ]
+              ]
+            ],
+          ]
+        ],
+      ]));
+      $content = new Content();
+      $content->setData(
+        [
+          $field->getIdentifier() => [
+            ['f1' => 'baa'],
+            ['n1' => [ ['n2' => [ [ 'f2' => 'foo',]]]], ],
+          ],
+        ]
+      )->setContentType($field->getContentType());
+      $form = $this->container->get('united.cms.fieldable_form_builder')->createForm($field->getContentType(), $content, ['csrf_protection' => false]);
+      $formView = $form->createView();
+
+      // Check root collection field.
+      $root = $formView->getIterator()->current();
+      $this->assertEquals('united-cms-collection-field', $root->vars['tag']);
+
+      // First Row
+      $row1 = array_shift($root->children);
+      $row2 = array_shift($root->children);
+
+      // Row 1 field 1
+      $row1F1 = array_shift($row1->children);
+      $this->assertEquals('f1', $row1F1->vars['name']);
+      $this->assertEquals('baa', $row1F1->vars['value']);
+
+      // Row 2 field 1
+      $row2F1 = array_shift($row2->children);
+      $this->assertEquals('f1', $row2F1->vars['name']);
+      $this->assertEquals('', $row2F1->vars['value']);
+
+      // Row 2 nested field 1
+      $row2N1 = array_shift($row2->children);
+      $this->assertEquals('n1', $row2N1->vars['name']);
+      $this->assertEquals('united-cms-collection-field', $row2N1->vars['tag']);
+
+      // Row 2 nested field 1 nested field 2
+      $row2N1Row1 = array_shift($row2N1->children);
+      $row2N1Row1N2 = array_shift($row2N1Row1->children);
+      $this->assertEquals('n2', $row2N1Row1N2->vars['name']);
+      $this->assertEquals('united-cms-collection-field', $row2N1Row1N2->vars['tag']);
+
+      // Row 2 nested field 1 nested field 2 nested field f2
+      $row2N1Row1N2Row1 = array_shift($row2N1Row1N2->children);
+      $row2N1Row1N2Row1F2 = array_shift($row2N1Row1N2Row1->children);
+      $this->assertEquals('f2', $row2N1Row1N2Row1F2->vars['name']);
+      $this->assertEquals('foo', $row2N1Row1N2Row1F2->vars['value']);
+
+    }
 }
