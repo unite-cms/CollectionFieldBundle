@@ -33,14 +33,6 @@ class CollectionFieldType extends FieldType
         $this->fieldTypeManager = $fieldTypeManager;
     }
 
-    private function createCollectionModel($settings, $identifier) {
-        return new Collection(isset($settings->fields) ? $settings->fields : [], $identifier);
-    }
-
-    private function getIdentifierPath(FieldableField $field) {
-        return $field->getEntity()->getIdentifier() . ucfirst($field->getIdentifier());
-    }
-
     function getFormOptions(): array
     {
         $settings = null;
@@ -53,22 +45,29 @@ class CollectionFieldType extends FieldType
         ];
         $options['fields'] = [];
 
-        foreach ($this->createCollectionModel($settings, $this->getIdentifierPath($this->field))->getFields() as $fieldDefinition) {
+        // Create a new collection model that implements Fieldable.
+        $collection = new Collection(
+          isset($settings->fields) ? $settings->fields : [],
+          $this->field->getIdentifier(),
+          $this->field->getEntity()
+        );
 
-            // Add the definition of the current field to the options.
+        // Add the definition of the all collection fields to the options.
+        foreach ($collection->getFields() as $fieldDefinition) {
             $options['fields'][] = new FieldableFormField(
                 $this->fieldTypeManager->getFieldType($fieldDefinition->getType()),
                 $fieldDefinition
             );
         }
 
+        // Configure the collection from type.
         return array_merge(parent::getFormOptions(), [
             'allow_add' => true,
             'allow_delete' => true,
             'delete_empty' => true,
-            'prototype_name' => '__' . $this->getIdentifierPath($this->field) . 'Name__',
+            'prototype_name' => '__' . $collection->getIdentifierPath() . 'Name__',
             'attr' => [
-                'data-identifier' => $this->getIdentifierPath($this->field),
+                'data-identifier' => $collection->getIdentifierPath(),
                 'min-rows' => $settings->min_rows ?? 0,
                 'max-rows' => $settings->max_rows ?? 0,
             ],
@@ -79,23 +78,37 @@ class CollectionFieldType extends FieldType
 
     function getGraphQLType(SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
     {
+        // Create a new collection model that implements Fieldable.
+        $collection = new Collection(
+          isset($this->field->getSettings()->fields) ? $this->field->getSettings()->fields : [],
+          $this->field->getIdentifier(),
+          $this->field->getEntity()
+        );
+
         return $this->collectionFieldTypeFactory->createCollectionFieldType(
             $schemaTypeManager,
             $nestingLevel,
             $this->field,
-            $this->createCollectionModel($this->field->getSettings(), $this->getIdentifierPath($this->field))
+            $collection
         );
     }
 
     function getGraphQLInputType(SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
     {
-      return $this->collectionFieldTypeFactory->createCollectionFieldType(
-        $schemaTypeManager,
-        $nestingLevel,
-        $this->field,
-        $this->createCollectionModel($this->field->getSettings(), $this->getIdentifierPath($this->field)),
-        true
-      );
+        // Create a new collection model that implements Fieldable.
+        $collection = new Collection(
+            isset($this->field->getSettings()->fields) ? $this->field->getSettings()->fields : [],
+            $this->field->getIdentifier(),
+            $this->field->getEntity()
+        );
+
+        return $this->collectionFieldTypeFactory->createCollectionFieldType(
+            $schemaTypeManager,
+            $nestingLevel,
+            $this->field,
+            $collection,
+            true
+        );
     }
 
     function resolveGraphQLData($value)
@@ -144,7 +157,9 @@ class CollectionFieldType extends FieldType
     private function validateAdditionalData($data, $settings, $identifier) {
 
         $violations = [];
-        $collection = $this->createCollectionModel($settings, '');
+        $collection = new Collection(
+          isset($settings->fields) ? $settings->fields : [],
+          $identifier);
 
         // Make sure, that there is no additional data in content that is not in settings.
         foreach($data as $row) {
@@ -191,11 +206,15 @@ class CollectionFieldType extends FieldType
 
         // Validate sub fields.
         if(empty($violations)) {
-            foreach($settings->fields as $key => $field) {
 
-                foreach($this->validator->validate($this->createCollectionModel($settings, '')) as $violation) {
-                    $violations[] = $violation;
-                }
+            // Create a new collection model that implements Fieldable.
+            $collection = new Collection(
+              isset($settings->fields) ? $settings->fields : [],
+              $this->field->getIdentifier()
+            );
+
+            foreach($this->validator->validate($collection) as $violation) {
+                $violations[] = $violation;
             }
         }
         return $violations;

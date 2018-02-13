@@ -5,12 +5,13 @@ namespace UnitedCMS\CollectionFieldBundle\Model;
 use Symfony\Component\Validator\Constraints as Assert;
 use Doctrine\Common\Collections\ArrayCollection;
 use UnitedCMS\CoreBundle\Entity\Fieldable;
+use UnitedCMS\CoreBundle\Entity\NestableFieldable;
 use UnitedCMS\CoreBundle\Entity\FieldableField;
 
 /**
  * We use this model only for validation!
  */
-class Collection implements Fieldable
+class Collection implements NestableFieldable
 {
 
     /**
@@ -24,8 +25,14 @@ class Collection implements Fieldable
      */
     private $identifier;
 
-    public function __construct($fields = [], $identifier)
+    /**
+     * @var Fieldable $parent
+     */
+    private $parent;
+
+    public function __construct($fields = [], $identifier, $parent = null)
     {
+        $this->parent = $parent;
         $this->fields = new ArrayCollection();
         $this->setIdentifier($identifier);
         $this->setFields($fields);
@@ -100,5 +107,30 @@ class Collection implements Fieldable
     public function getLocales(): array
     {
         return [];
+    }
+
+    /**
+     * @return null|Fieldable|NestableFieldable
+     */
+    public function getParentEntity()
+    {
+        return $this->parent;
+    }
+
+    public function getIdentifierPath() {
+
+        $path = '';
+
+        if($this->getParentEntity()) {
+            if($this->getParentEntity() instanceof NestableFieldable) {
+                $path = $this->getParentEntity()->getIdentifierPath();
+            }
+
+            elseif($this->getParentEntity() instanceof Fieldable) {
+                $path = ucfirst($this->getParentEntity()->getIdentifier());
+            }
+        }
+
+        return $path . ucfirst($this->getIdentifier());
     }
 }

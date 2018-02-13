@@ -37,7 +37,7 @@ class CollectionFieldTypeFactory
      */
     public function createCollectionFieldType(SchemaTypeManager $schemaTypeManager, int $nestingLevel, FieldableField $field, Collection $collection, $isInputType = false)
     {
-        $schemaTypeName = ucfirst($field->getEntity()->getIdentifier()) . ucfirst($field->getIdentifier()) . 'CollectionField';
+        $schemaTypeName = $collection->getIdentifierPath() . 'CollectionField';
         $schemaTypeRowName = $schemaTypeName . 'Row';
 
         if($isInputType) {
