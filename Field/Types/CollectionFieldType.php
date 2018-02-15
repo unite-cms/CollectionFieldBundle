@@ -7,15 +7,17 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use UnitedCMS\CollectionFieldBundle\Form\CollectionFormType;
 use UnitedCMS\CollectionFieldBundle\Model\Collection;
 use UnitedCMS\CollectionFieldBundle\SchemaType\Factories\CollectionFieldTypeFactory;
+use UnitedCMS\CoreBundle\Entity\Fieldable;
 use UnitedCMS\CoreBundle\Entity\FieldableField;
 use UnitedCMS\CoreBundle\Field\FieldableFieldSettings;
 use UnitedCMS\CoreBundle\Field\FieldType;
 use UnitedCMS\CoreBundle\Field\FieldTypeManager;
+use UnitedCMS\CoreBundle\Field\NestableFieldTypeInterface;
 use UnitedCMS\CoreBundle\Form\FieldableFormField;
 use UnitedCMS\CoreBundle\Form\FieldableFormType;
 use UnitedCMS\CoreBundle\SchemaType\SchemaTypeManager;
 
-class CollectionFieldType extends FieldType
+class CollectionFieldType extends FieldType implements NestableFieldTypeInterface
 {
     const TYPE                      = "collection";
     const FORM_TYPE                 = CollectionFormType::class;
@@ -33,12 +35,12 @@ class CollectionFieldType extends FieldType
         $this->fieldTypeManager = $fieldTypeManager;
     }
 
-    function getFormOptions(): array
+    /**
+     * {@inheritdoc}
+     */
+    function getFormOptions(FieldableField $field): array
     {
-        $settings = null;
-        if($this->fieldIsPresent() && method_exists($this->field, 'getSettings')) {
-            $settings = $this->field->getSettings();
-        }
+        $settings = $field->getSettings();
 
         $options = [
             'label' => false,
@@ -46,11 +48,7 @@ class CollectionFieldType extends FieldType
         $options['fields'] = [];
 
         // Create a new collection model that implements Fieldable.
-        $collection = new Collection(
-          isset($settings->fields) ? $settings->fields : [],
-          $this->field->getIdentifier(),
-          $this->field->getEntity()
-        );
+        $collection = self::getNestableFieldable($field);
 
         // Add the definition of the all collection fields to the options.
         foreach ($collection->getFields() as $fieldDefinition) {
@@ -61,13 +59,13 @@ class CollectionFieldType extends FieldType
         }
 
         // Configure the collection from type.
-        return array_merge(parent::getFormOptions(), [
+        return array_merge(parent::getFormOptions($field), [
             'allow_add' => true,
             'allow_delete' => true,
             'delete_empty' => true,
-            'prototype_name' => '__' . $collection->getIdentifierPath() . 'Name__',
+            'prototype_name' => '__' . str_replace('/', '', ucwords($collection->getIdentifierPath(), '/')) . 'Name__',
             'attr' => [
-                'data-identifier' => $collection->getIdentifierPath(),
+                'data-identifier' => str_replace('/', '', ucwords($collection->getIdentifierPath(), '/')),
                 'min-rows' => $settings->min_rows ?? 0,
                 'max-rows' => $settings->max_rows ?? 0,
             ],
@@ -76,106 +74,120 @@ class CollectionFieldType extends FieldType
         ]);
     }
 
-    function getGraphQLType(SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
+    /**
+     * {@inheritdoc}
+     */
+    function getGraphQLType(FieldableField $field, SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
     {
-        // Create a new collection model that implements Fieldable.
-        $collection = new Collection(
-          isset($this->field->getSettings()->fields) ? $this->field->getSettings()->fields : [],
-          $this->field->getIdentifier(),
-          $this->field->getEntity()
-        );
-
         return $this->collectionFieldTypeFactory->createCollectionFieldType(
             $schemaTypeManager,
             $nestingLevel,
-            $this->field,
-            $collection
+            $field,
+            self::getNestableFieldable($field)
         );
     }
 
-    function getGraphQLInputType(SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
+    /**
+     * {@inheritdoc}
+     */
+    function getGraphQLInputType(FieldableField $field, SchemaTypeManager $schemaTypeManager, $nestingLevel = 0)
     {
-        // Create a new collection model that implements Fieldable.
-        $collection = new Collection(
-            isset($this->field->getSettings()->fields) ? $this->field->getSettings()->fields : [],
-            $this->field->getIdentifier(),
-            $this->field->getEntity()
-        );
-
         return $this->collectionFieldTypeFactory->createCollectionFieldType(
             $schemaTypeManager,
             $nestingLevel,
-            $this->field,
-            $collection,
+            $field,
+            self::getNestableFieldable($field),
             true
         );
     }
 
-    function resolveGraphQLData($value)
+    /**
+     * {@inheritdoc}
+     */
+    function resolveGraphQLData(FieldableField $field, $value)
     {
-        if (!$this->fieldIsPresent()) {
-            return 'undefined';
-        }
-
         return (array)$value;
     }
 
-    function validateData($data): array
+    /**
+     * {@inheritdoc}
+     */
+    function validateSettings(FieldableField $field, FieldableFieldSettings $settings): array
     {
-        $violations = $this->validateAdditionalData($data, $this->field->getSettings(), $this->field->getIdentifier());
+        // Validate allowed and required settings.
+        $violations = parent::validateSettings($field, $settings);
 
-        $max_rows = $this->field->getSettings()->max_rows ?? 0;
-        $min_rows = $this->field->getSettings()->min_rows ?? 0;
+        // Validate sub fields.
+        if(empty($violations)) {
+
+            // Validate a virtual fieldable for this collection field.
+            foreach($this->validator->validate(self::getNestableFieldable($field)) as $violation) {
+                $violations[] = $violation;
+            }
+        }
+        return $violations;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    function validateData(FieldableField $field, $data): array
+    {
+        $violations = $this->validateNestedFields($data, $field);
+
+        $max_rows = $field->getSettings()->max_rows ?? 0;
+        $min_rows = $field->getSettings()->min_rows ?? 0;
 
         // Validate max_rows
         if($max_rows > 0 && $max_rows < count($data)) {
-            $violations[] = $this->createViolation('validation.too_many_rows');
+            $violations[] = $this->createViolation($field, 'validation.too_many_rows');
         }
 
         // Validate min_rows
         if(count($data) < $min_rows) {
-            $violations[] = $this->createViolation('validation.too_few_rows');
+            $violations[] = $this->createViolation($field, 'validation.too_few_rows');
         }
 
         return $violations;
     }
 
-    private function validateAdditionalData($data, $settings, $identifier) {
+    /**
+     * Recursively validate all fields in this collection.
+     *
+     * @param array $data
+     * @param FieldableField $field
+     *
+     * @return array
+     */
+    private function validateNestedFields($data, FieldableField $field) {
 
         $violations = [];
-        $collection = new Collection(
-          isset($settings->fields) ? $settings->fields : [],
-          $identifier);
+        $collection = self::getNestableFieldable($field);
 
         // Make sure, that there is no additional data in content that is not in settings.
         foreach($data as $row) {
             foreach (array_keys($row) as $data_key) {
+
+                // If the field does not exists, add an error.
                 if (!$collection->getFields()->containsKey($data_key)) {
                     $violations[] = new ConstraintViolation(
-                        'validation.additional_data',
-                        'validation.additional_data',
-                        [],
-                        $row,
-                        $identifier.'.'.$data_key,
-                        $row
+                      'validation.additional_data',
+                      'validation.additional_data',
+                      [],
+                      $row,
+                      join('.', [
+                          $field->getEntity()->getIdentifierPath('.'),
+                          $field->getIdentifier(),
+                          $data_key
+                      ]),
+                      $row
                     );
 
-                // For nested collection fields we also need to check the children
-                } elseif ($collection->getFields()->get($data_key)->getType() == static::TYPE) {
-                    $violations = array_merge(
-                        $violations,
-                        $this->validateAdditionalData(
-                            $row[$data_key],
-                            $collection->getFields()->get($data_key)->getSettings(),
-                            $identifier.'.'.$data_key
-                        )
-                    );
-
-                // For all other fields let the field type add violations
+                // If the field exists, let the fieldTypeManager validate it.
                 } else {
                     $violations = array_merge(
-                        $violations,
-                        $this->fieldTypeManager->validateFieldData($collection->getFields()->get($data_key), $row[$data_key])
+                      $violations,
+                      $this->fieldTypeManager->validateFieldData($collection->getFields()->get($data_key), $row[$data_key])
                     );
                 }
             }
@@ -184,24 +196,16 @@ class CollectionFieldType extends FieldType
         return $violations;
     }
 
-    function validateSettings(FieldableFieldSettings $settings): array
+    /**
+     * @param FieldableField $field
+     * @return Collection
+     */
+    static function getNestableFieldable(FieldableField $field): Fieldable
     {
-        // Validate allowed and required settings.
-        $violations = parent::validateSettings($settings);
-
-        // Validate sub fields.
-        if(empty($violations)) {
-
-            // Create a new collection model that implements Fieldable.
-            $collection = new Collection(
-              isset($settings->fields) ? $settings->fields : [],
-              $this->field->getIdentifier()
-            );
-
-            foreach($this->validator->validate($collection) as $violation) {
-                $violations[] = $violation;
-            }
-        }
-        return $violations;
+        return new Collection(
+          isset($field->getSettings()->fields) ? $field->getSettings()->fields : [],
+          $field->getIdentifier(),
+          $field->getEntity()
+        );
     }
 }

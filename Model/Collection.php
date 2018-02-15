@@ -5,13 +5,12 @@ namespace UnitedCMS\CollectionFieldBundle\Model;
 use Symfony\Component\Validator\Constraints as Assert;
 use Doctrine\Common\Collections\ArrayCollection;
 use UnitedCMS\CoreBundle\Entity\Fieldable;
-use UnitedCMS\CoreBundle\Entity\NestableFieldable;
 use UnitedCMS\CoreBundle\Entity\FieldableField;
 
 /**
  * We use this model only for validation!
  */
-class Collection implements NestableFieldable
+class Collection implements Fieldable
 {
 
     /**
@@ -110,27 +109,31 @@ class Collection implements NestableFieldable
     }
 
     /**
-     * @return null|Fieldable|NestableFieldable
+     * {@inheritdoc}
      */
     public function getParentEntity()
     {
         return $this->parent;
     }
 
-    public function getIdentifierPath() {
+    /**
+     * {@inheritdoc}
+     */
+    public function getIdentifierPath($delimiter = '/') {
 
         $path = '';
 
         if($this->getParentEntity()) {
-            if($this->getParentEntity() instanceof NestableFieldable) {
-                $path = $this->getParentEntity()->getIdentifierPath();
-            }
-
-            elseif($this->getParentEntity() instanceof Fieldable) {
-                $path = ucfirst($this->getParentEntity()->getIdentifier());
-            }
+            $path = $this->getParentEntity()->getIdentifierPath($delimiter) . $delimiter;
         }
 
-        return $path . ucfirst($this->getIdentifier());
+        return $path . $this->getIdentifier();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getRootEntity(): Fieldable {
+        return $this->getParentEntity() ? $this->parent->getRootEntity() : $this;
     }
 }

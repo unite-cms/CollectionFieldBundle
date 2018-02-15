@@ -37,7 +37,7 @@ class CollectionFieldTypeFactory
      */
     public function createCollectionFieldType(SchemaTypeManager $schemaTypeManager, int $nestingLevel, FieldableField $field, Collection $collection, $isInputType = false)
     {
-        $schemaTypeName = $collection->getIdentifierPath() . 'CollectionField';
+        $schemaTypeName = str_replace('/', '', ucwords($collection->getIdentifierPath(), '/')) . 'CollectionField';
         $schemaTypeRowName = $schemaTypeName . 'Row';
 
         if($isInputType) {
@@ -65,15 +65,12 @@ class CollectionFieldTypeFactory
                 foreach($collection->getFields() as $field) {
                     $fields[$field->getIdentifier()] = $field;
                     $fieldTypes[$field->getIdentifier()] = $this->fieldTypeManager->getFieldType($field->getType());
-                    $fieldTypes[$field->getIdentifier()]->setEntityField($field);
 
                     if($isInputType) {
-                      $fieldsSchemaTypes[$field->getIdentifier()] = $fieldTypes[$field->getIdentifier()]->getGraphQLInputType($schemaTypeManager, $nestingLevel + 1);
+                      $fieldsSchemaTypes[$field->getIdentifier()] = $fieldTypes[$field->getIdentifier()]->getGraphQLInputType($field, $schemaTypeManager, $nestingLevel + 1);
                     } else {
-                      $fieldsSchemaTypes[$field->getIdentifier()] = $fieldTypes[$field->getIdentifier()]->getGraphQLType($schemaTypeManager, $nestingLevel + 1);
+                      $fieldsSchemaTypes[$field->getIdentifier()] = $fieldTypes[$field->getIdentifier()]->getGraphQLType($field, $schemaTypeManager, $nestingLevel + 1);
                     }
-
-                    $fieldTypes[$field->getIdentifier()]->unsetEntityField();
                 }
 
                 if($isInputType) {
@@ -97,9 +94,7 @@ class CollectionFieldTypeFactory
 
                       $return_value = null;
                       $fieldType = $this->fieldTypeManager->getFieldType($fieldTypes[$info->fieldName]->getType());
-                      $fieldType->setEntityField($fields[$info->fieldName]);
-                      $return_value = $fieldType->resolveGraphQLData($value[$info->fieldName]);
-                      $fieldType->unsetEntityField();
+                      $return_value = $fieldType->resolveGraphQLData($fields[$info->fieldName], $value[$info->fieldName]);
                       return $return_value;
                     }
                   ]));

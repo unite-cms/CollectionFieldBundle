@@ -364,13 +364,13 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
         ]],
       ]);
       $this->assertCount(4, $violations);
-      $this->assertEquals($field->getIdentifier() . '.foo', $violations[0]->getPropertyPath());
+      $this->assertEquals($field->getEntity()->getIdentifierPath('.') . '.' . $field->getIdentifier() . '.foo', $violations[0]->getPropertyPath());
       $this->assertEquals('validation.additional_data', $violations[0]->getMessage());
       $this->assertEquals('[f2]', $violations[1]->getPropertyPath());
       $this->assertEquals('validation.wrong_definition', $violations[1]->getMessage());
       $this->assertEquals('[f2]', $violations[2]->getPropertyPath());
       $this->assertEquals('validation.missing_definition', $violations[2]->getMessage());
-      $this->assertEquals($field->getIdentifier() . '.n1.n2.foo', $violations[3]->getPropertyPath());
+      $this->assertEquals($field->getEntity()->getIdentifierPath('.') . '.' . $field->getIdentifier() . '.n1.n2.foo', $violations[3]->getPropertyPath());
       $this->assertEquals('validation.additional_data', $violations[3]->getMessage());
     }
 
