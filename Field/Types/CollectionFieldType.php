@@ -2,12 +2,16 @@
 
 namespace UnitedCMS\CollectionFieldBundle\Field\Types;
 
+use Doctrine\Common\Persistence\Event\LifecycleEventArgs;
+use Doctrine\ORM\EntityRepository;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use UnitedCMS\CollectionFieldBundle\Form\CollectionFormType;
 use UnitedCMS\CollectionFieldBundle\Model\Collection;
 use UnitedCMS\CollectionFieldBundle\SchemaType\Factories\CollectionFieldTypeFactory;
+use UnitedCMS\CoreBundle\Entity\Content;
 use UnitedCMS\CoreBundle\Entity\Fieldable;
+use UnitedCMS\CoreBundle\Entity\FieldableContent;
 use UnitedCMS\CoreBundle\Entity\FieldableField;
 use UnitedCMS\CoreBundle\Field\FieldableFieldSettings;
 use UnitedCMS\CoreBundle\Field\FieldType;
@@ -207,5 +211,104 @@ class CollectionFieldType extends FieldType implements NestableFieldTypeInterfac
           $field->getIdentifier(),
           $field->getEntity()
         );
+    }
+
+    /**
+     * Delegate onCreate call to all child fields, that implement it.
+     *
+     * @param FieldableField $field
+     * @param Content $content
+     * @param EntityRepository $repository
+     * @param $data
+     */
+    public function onCreate(FieldableField $field, Content $content, EntityRepository $repository, &$data) {
+
+        // If child field implements onCreate, call it!
+        foreach(self::getNestableFieldable($field)->getFields() as $subField) {
+            $fieldType = $this->fieldTypeManager->getFieldType($subField->getType());
+
+            if(method_exists($fieldType, 'onCreate')) {
+                if(!empty($data[$field->getIdentifier()])) {
+                    foreach($data[$field->getIdentifier()] as $key => $subData) {
+                        $fieldType->onCreate($subField, $content, $repository, $subData);
+                        $data[$field->getIdentifier()][$key] = $subData;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Delegate onUpdate call to all child fields, that implement it.
+     *
+     * @param FieldableField $field
+     * @param FieldableContent $content
+     * @param EntityRepository $repository
+     * @param $data
+     */
+    public function onUpdate(FieldableField $field, FieldableContent $content, EntityRepository $repository, $old_data, &$data) {
+
+        // If child field implements onUpdate, call it!
+        foreach(self::getNestableFieldable($field)->getFields() as $subField) {
+            $fieldType = $this->fieldTypeManager->getFieldType($subField->getType());
+
+            if(method_exists($fieldType, 'onUpdate')) {
+                if(!empty($data[$field->getIdentifier()])) {
+                    foreach($data[$field->getIdentifier()] as $key => $subData) {
+                        $subOldData = isset($old_data[$field->getIdentifier()][$key]) ?? [];
+                        $fieldType->onUpdate($subField, $content, $repository, $subOldData, $subData);
+                        $data[$field->getIdentifier()][$key] = $subData;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Delegate onSoftDelete call to all child fields, that implement it.
+     *
+     * @param FieldableField $field
+     * @param Content $content
+     * @param EntityRepository $repository
+     * @param $data
+     */
+    public function onSoftDelete(FieldableField $field, Content $content, EntityRepository $repository, $data) {
+
+        // If child field implements onSoftDelete, call it!
+        foreach(self::getNestableFieldable($field)->getFields() as $subField) {
+            $fieldType = $this->fieldTypeManager->getFieldType($subField->getType());
+
+            if(method_exists($fieldType, 'onSoftDelete')) {
+                if(!empty($data[$field->getIdentifier()])) {
+                    foreach($data[$field->getIdentifier()] as $key => $subData) {
+                        $fieldType->onSoftDelete($subField, $content, $repository, $subData);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Delegate onHardDelete call to all child fields, that implement it.
+     *
+     * @param FieldableField $field
+     * @param Content $content
+     * @param EntityRepository $repository
+     * @param $data
+     */
+    public function onHardDelete(FieldableField $field, Content $content, EntityRepository $repository, $data) {
+
+        // If child field implements onHardDelete, call it!
+        foreach(self::getNestableFieldable($field)->getFields() as $subField) {
+            $fieldType = $this->fieldTypeManager->getFieldType($subField->getType());
+
+            if(method_exists($fieldType, 'onHardDelete')) {
+                if(!empty($data[$field->getIdentifier()])) {
+                    foreach($data[$field->getIdentifier()] as $key => $subData) {
+                        $fieldType->onHardDelete($subField, $content, $repository, $subData);
+                    }
+                }
+            }
+        }
     }
 }

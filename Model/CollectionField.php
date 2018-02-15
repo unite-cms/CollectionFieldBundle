@@ -192,4 +192,22 @@ class CollectionField implements FieldableField
         $this->collection = $entity;
         return $this;
     }
+
+    /**
+     * Returns the identifier, used for mysql's json_extract function.
+     *
+     * @return string
+     */
+    public function getJsonExtractIdentifier()
+    {
+        $pathParts = explode('/', $this->getEntity()->getIdentifierPath());
+
+        // remove root entity path.
+        array_shift($pathParts);
+
+        // add this identifier.
+        $pathParts[] = $this->getIdentifier();
+
+        return '$.' . join('[*].', $pathParts);
+    }
 }
