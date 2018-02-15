@@ -333,7 +333,7 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
       // Validate min rows.
       $violations = $this->container->get('united.cms.field_type_manager')->validateFieldData($field, []);
       $this->assertCount(1, $violations);
-      $this->assertEquals($field->getIdentifier(), $violations[0]->getPropertyPath());
+      $this->assertEquals('[' . $field->getIdentifier() . ']', $violations[0]->getPropertyPath());
       $this->assertEquals('validation.too_few_rows', $violations[0]->getMessage());
 
       // Validate max rows.
@@ -345,7 +345,7 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
         ['f1' => 'baa'],
       ]);
       $this->assertCount(1, $violations);
-      $this->assertEquals($field->getIdentifier(), $violations[0]->getPropertyPath());
+      $this->assertEquals('[' . $field->getIdentifier() . ']', $violations[0]->getPropertyPath());
       $this->assertEquals('validation.too_many_rows', $violations[0]->getMessage());
 
       // Validate additional data (also nested).

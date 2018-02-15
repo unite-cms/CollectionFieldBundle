@@ -129,26 +129,12 @@ class CollectionFieldType extends FieldType
 
         // Validate max_rows
         if($max_rows > 0 && $max_rows < count($data)) {
-            $violations[] = new ConstraintViolation(
-                'validation.too_many_rows',
-                'validation.too_many_rows',
-                [],
-                NULL,
-                $this->field->getIdentifier(),
-                NULL
-            );
+            $violations[] = $this->createViolation('validation.too_many_rows');
         }
 
         // Validate min_rows
         if(count($data) < $min_rows) {
-            $violations[] = new ConstraintViolation(
-                'validation.too_few_rows',
-                'validation.too_few_rows',
-                [],
-                NULL,
-                $this->field->getIdentifier(),
-                NULL
-            );
+            $violations[] = $this->createViolation('validation.too_few_rows');
         }
 
         return $violations;
@@ -197,7 +183,6 @@ class CollectionFieldType extends FieldType
 
         return $violations;
     }
-
 
     function validateSettings(FieldableFieldSettings $settings): array
     {
