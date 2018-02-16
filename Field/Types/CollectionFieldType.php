@@ -253,11 +253,27 @@ class CollectionFieldType extends FieldType implements NestableFieldTypeInterfac
             $fieldType = $this->fieldTypeManager->getFieldType($subField->getType());
 
             if(method_exists($fieldType, 'onUpdate')) {
+
+                $keys_used = [];
+
+                // Call hook for all available data.
                 if(!empty($data[$field->getIdentifier()])) {
                     foreach($data[$field->getIdentifier()] as $key => $subData) {
-                        $subOldData = isset($old_data[$field->getIdentifier()][$key]) ?? [];
+                        $subOldData = isset($old_data[$field->getIdentifier()][$key]) ? $old_data[$field->getIdentifier()][$key] : [];
                         $fieldType->onUpdate($subField, $content, $repository, $subOldData, $subData);
                         $data[$field->getIdentifier()][$key] = $subData;
+                        $keys_used[] = $key;
+                    }
+                }
+
+                // Call hook for all available old data, but only if it was not called before.
+                if(!empty($old_data[$field->getIdentifier()])) {
+                    foreach($old_data[$field->getIdentifier()] as $key => $subOldData) {
+                        if(!in_array($key, $keys_used)) {
+                            $subData = isset($data[$field->getIdentifier()][$key]) ? $data[$field->getIdentifier()][$key] : [];
+                            $fieldType->onUpdate($subField, $content, $repository, $subOldData, $subData);
+                            $data[$field->getIdentifier()][$key] = $subData;
+                        }
                     }
                 }
             }
