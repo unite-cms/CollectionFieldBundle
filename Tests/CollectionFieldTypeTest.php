@@ -2,9 +2,12 @@
 
 namespace UnitedCMS\CollectionFieldBundle\Tests;
 
+use GraphQL\GraphQL;
+use GraphQL\Schema;
 use GraphQL\Type\Definition\ObjectType;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use UnitedCMS\CoreBundle\Entity\Content;
-use UnitedCMS\CoreBundle\Entity\ContentType;
+use UnitedCMS\CoreBundle\Entity\User;
 use UnitedCMS\CoreBundle\Field\FieldableFieldSettings;
 use UnitedCMS\CoreBundle\Form\FieldableFormType;
 use UnitedCMS\CoreBundle\Tests\Field\FieldTypeTestCase;
@@ -169,6 +172,115 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
       $this->assertEquals('String', $type->getField('f1')->getType()->getWrappedType()->getField('n1')->getType()->getWrappedType()->getField('n2')->getType()->getWrappedType()->getField('f2')->getType()->name);
     }
 
+  public function testWritingGraphQLData() {
+
+    $field = $this->createContentTypeField('collection');
+    $field->setIdentifier('f1');
+    $field->getContentType()->setIdentifier('ct1');
+    $field->setSettings(new FieldableFieldSettings([
+      'fields' => [
+        [
+          'title' => 'Sub Field 1',
+          'identifier' => 'f1',
+          'type' => 'text',
+        ],
+        [
+          'title' => 'Nested Field 1',
+          'identifier' => 'n1',
+          'type' => 'collection',
+          'settings' => [
+            'fields' => [
+              [
+                'title' => 'Nested Field 2',
+                'identifier' => 'n2',
+                'type' => 'collection',
+                'settings' => [
+                  'fields' => [
+                    [
+                      'title' => 'Sub Field 2',
+                      'identifier' => 'f2',
+                      'type' => 'text',
+                    ],
+                  ]
+                ],
+              ]
+            ]
+          ],
+        ]
+      ],
+    ]));
+    $this->em->persist($field->getContentType()->getDomain()->getOrganization());
+    $this->em->persist($field->getContentType()->getDomain());
+    $this->em->persist($field->getContentType());
+    $this->em->flush();
+
+    $this->em->refresh($field->getContentType()->getDomain());
+    $this->em->refresh($field->getContentType());
+    $this->em->refresh($field);
+
+    // Inject created domain into untied.cms.manager.
+    $d = new \ReflectionProperty($this->container->get('united.cms.manager'), 'domain');
+    $d->setAccessible(true);
+    $d->setValue($this->container->get('united.cms.manager'), $field->getContentType()->getDomain());
+    $domain = $field->getContentType()->getDomain();
+
+    // In this test, we don't care about access checking.
+    $admin = new User();
+    $admin->setRoles([User::ROLE_PLATFORM_ADMIN]);
+    $this->container->get('security.token_storage')->setToken(new UsernamePasswordToken($admin, null, 'main', $admin->getRoles()));
+
+    // Create GraphQL Schema
+    $schemaTypeManager = $this->container->get('united.cms.graphql.schema_type_manager');
+
+    $schema = new Schema(
+      [
+        'query' => $schemaTypeManager->getSchemaType('Query'),
+        'mutation' => $schemaTypeManager->getSchemaType('Mutation'),
+        'typeLoader' => function ($name) use ($schemaTypeManager, $domain) {
+          return $schemaTypeManager->getSchemaType($name, $domain);
+        },
+      ]
+    );
+
+    $result = GraphQL::executeQuery($schema, 'mutation { 
+      createCt1(
+        data: {
+          f1: [
+            {},
+            {
+              f1: "Foo",
+              n1: [
+                {
+                  n2: [
+                    { f2: "Baa" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ) {
+        id,
+        f1 {
+          f1,
+          n1 {
+            n2 {
+              f2
+            }
+          }
+        }
+       }
+    }');
+    $result = json_decode(json_encode($result->toArray()));
+    $this->assertNotEmpty($result->data->createCt1->id);
+    $content = $this->em->getRepository('UnitedCMSCoreBundle:Content')->find($result->data->createCt1->id);
+    $this->assertNotNull($content);
+    $this->assertNotNull($result->data->createCt1->f1[0]);
+    $this->assertEquals('Foo', $result->data->createCt1->f1[1]->f1);
+    $this->assertEquals('Baa', $result->data->createCt1->f1[1]->n1[0]->n2[0]->f2);
+    $this->assertEquals('Foo', $content->getData()['f1'][1]['f1']);
+  }
+
     public function testValidatingContent() {
       $field = $this->createContentTypeField('collection');
       $field->setSettings(new FieldableFieldSettings([
@@ -210,10 +322,18 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
         ],
       ]));
 
+      // Inject created domain into untied.cms.manager.
+      $d = new \ReflectionProperty($this->container->get('united.cms.manager'), 'domain');
+      $d->setAccessible(true);
+      $d->setValue($this->container->get('united.cms.manager'), $field->getContentType()->getDomain());
+      $o = new \ReflectionProperty($this->container->get('united.cms.manager'), 'organization');
+      $o->setAccessible(true);
+      $o->setValue($this->container->get('united.cms.manager'), $field->getContentType()->getDomain()->getOrganization());
+
       // Validate min rows.
       $violations = $this->container->get('united.cms.field_type_manager')->validateFieldData($field, []);
       $this->assertCount(1, $violations);
-      $this->assertEquals($field->getIdentifier(), $violations[0]->getPropertyPath());
+      $this->assertEquals('[' . $field->getIdentifier() . ']', $violations[0]->getPropertyPath());
       $this->assertEquals('validation.too_few_rows', $violations[0]->getMessage());
 
       // Validate max rows.
@@ -225,7 +345,7 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
         ['f1' => 'baa'],
       ]);
       $this->assertCount(1, $violations);
-      $this->assertEquals($field->getIdentifier(), $violations[0]->getPropertyPath());
+      $this->assertEquals('[' . $field->getIdentifier() . ']', $violations[0]->getPropertyPath());
       $this->assertEquals('validation.too_many_rows', $violations[0]->getMessage());
 
       // Validate additional data (also nested).
@@ -243,13 +363,15 @@ class CollectionFieldTypeTest extends FieldTypeTestCase
           ]]
         ]],
       ]);
-      $this->assertCount(3, $violations);
-      $this->assertEquals($field->getIdentifier() . '.foo', $violations[0]->getPropertyPath());
+      $this->assertCount(4, $violations);
+      $this->assertEquals($field->getEntity()->getIdentifierPath('.') . '.' . $field->getIdentifier() . '.foo', $violations[0]->getPropertyPath());
       $this->assertEquals('validation.additional_data', $violations[0]->getMessage());
       $this->assertEquals('[f2]', $violations[1]->getPropertyPath());
       $this->assertEquals('validation.wrong_definition', $violations[1]->getMessage());
-      $this->assertEquals($field->getIdentifier() . '.n1.n2.foo', $violations[2]->getPropertyPath());
-      $this->assertEquals('validation.additional_data', $violations[2]->getMessage());
+      $this->assertEquals('[f2]', $violations[2]->getPropertyPath());
+      $this->assertEquals('validation.missing_definition', $violations[2]->getMessage());
+      $this->assertEquals($field->getEntity()->getIdentifierPath('.') . '.' . $field->getIdentifier() . '.n1.n2.foo', $violations[3]->getPropertyPath());
+      $this->assertEquals('validation.additional_data', $violations[3]->getMessage());
     }
 
     public function testFormBuilding() {

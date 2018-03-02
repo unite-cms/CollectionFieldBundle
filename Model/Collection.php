@@ -24,8 +24,14 @@ class Collection implements Fieldable
      */
     private $identifier;
 
-    public function __construct($fields = [], $identifier)
+    /**
+     * @var Fieldable $parent
+     */
+    private $parent;
+
+    public function __construct($fields = [], $identifier, $parent = null)
     {
+        $this->parent = $parent;
         $this->fields = new ArrayCollection();
         $this->setIdentifier($identifier);
         $this->setFields($fields);
@@ -100,5 +106,34 @@ class Collection implements Fieldable
     public function getLocales(): array
     {
         return [];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getParentEntity()
+    {
+        return $this->parent;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getIdentifierPath($delimiter = '/') {
+
+        $path = '';
+
+        if($this->getParentEntity()) {
+            $path = $this->getParentEntity()->getIdentifierPath($delimiter) . $delimiter;
+        }
+
+        return $path . $this->getIdentifier();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getRootEntity(): Fieldable {
+        return $this->getParentEntity() ? $this->parent->getRootEntity() : $this;
     }
 }
