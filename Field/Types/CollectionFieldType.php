@@ -135,8 +135,13 @@ class CollectionFieldType extends FieldType implements NestableFieldTypeInterfac
     /**
      * {@inheritdoc}
      */
-    function validateData(FieldableField $field, $data): array
+    function validateData(FieldableField $field, $data, $validation_group = 'DEFAULT'): array
     {
+        // When deleting content, we don't need to validate data.
+        if($validation_group === 'DELETE') {
+            return [];
+        }
+
         $violations = $this->validateNestedFields($data, $field);
 
         $max_rows = $field->getSettings()->max_rows ?? 0;
